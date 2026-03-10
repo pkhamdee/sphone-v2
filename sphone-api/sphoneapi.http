@@ -1,0 +1,6 @@
+@sphoneapi_HostAddress = http://localhost:5154
+
+GET {{sphoneapi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

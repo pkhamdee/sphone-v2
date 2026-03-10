@@ -1,0 +1,217 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: sphone-postgres
+    environment:
+      POSTGRES_DB: sphone
+      POSTGRES_USER: sphone
+      POSTGRES_PASSWORD: sphone123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sphone"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sphone-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: sphone-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: sphone-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"   # External (host) access
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Two listeners: INTERNAL for container-to-container, EXTERNAL for host tools
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://sphone-kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Application services
+  # ---------------------------------------------------------------------------
+
+  sphone-api:
+    build:
+      context: ./sphone-api
+      dockerfile: Dockerfile
+    image: sphone-api:dev
+    container_name: sphone-api
+    ports:
+      - "5154:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Database: "Host=sphone-postgres;Port=5432;Database=sphone;Username=sphone;Password=sphone123"
+      ConnectionStrings__Redis: "sphone-redis:6379"
+      Kafka__BootstrapServers: "sphone-kafka:29092"
+      Jwt__Secret: "sphone-super-secret-key-minimum-32-characters!!"
+      Jwt__Issuer: "sphone-api"
+      Jwt__Audience: "sphone-app"
+      Jwt__ExpiryHours: "24"
+      OpenTelemetry__Endpoint: "http://sphone-otel-collector:4317"
+      Cors__AllowedOrigins__0: "http://localhost:3000"
+      Cors__AllowedOrigins__1: "http://sphone-app:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  sphone-app:
+    build:
+      context: ./sphone-app
+      dockerfile: Dockerfile
+    image: sphone-app:dev
+    container_name: sphone-app
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      # Browser-facing URL (resolved from the user's machine)
+      NEXT_PUBLIC_API_URL: "http://localhost:5154/api"
+      # Server-side OTel (resolved inside Docker network)
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://sphone-otel-collector:4317"
+      OTEL_SERVICE_NAME: "sphone-app"
+    depends_on:
+      sphone-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Observability stack
+  # ---------------------------------------------------------------------------
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    container_name: sphone-otel-collector
+    command: ["--config=/etc/otel/otel-collector.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otel/otel-collector.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # Collector self-metrics
+      - "8889:8889"   # Prometheus metrics exporter (scraped by Prometheus)
+      - "13133:13133" # Health check
+    depends_on:
+      - tempo
+      - loki
+    # The collector image is distroless (no shell/wget/curl).
+    # It self-restarts on config error; apps tolerate a brief unavailability.
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: sphone-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-remote-write-receiver"
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+
+  tempo:
+    image: grafana/tempo:2.7.2
+    container_name: sphone-tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP API
+      - "9095:9095"   # Tempo gRPC
+
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: sphone-loki
+    user: "0"
+    entrypoint: ["sh", "-c", "mkdir -p /var/loki/rules && exec /usr/bin/loki -config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/var/loki
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:11.4.2
+    container_name: sphone-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor traceToMetrics
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3333:3000"   # Grafana UI at http://localhost:3333
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  tempo_data:
+  loki_data:
+  grafana_data:

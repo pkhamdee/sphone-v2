@@ -1,0 +1,246 @@
+# ─────────────────────────────────────────────────────────────────
+# sphone-api — Child Pipeline
+# Stages: lint → test → audit → package → scan → deploy
+#
+# Required CI/CD Variables (Settings → CI/CD → Variables):
+#   DOCKER_HUB_USERNAME  → pkhamdee
+#   DOCKER_HUB_TOKEN     → Docker Hub access token (protected, masked)
+#   KUBE_CONFIG          → base64-encoded kubeconfig (for deploy jobs)
+# ─────────────────────────────────────────────────────────────────
+
+variables:
+  IMAGE_NAME: pkhamdee/sphone-api
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  DOTNET_NOLOGO: "true"
+  NUGET_XMLDOC_MODE: skip
+  DOCKER_TLS_CERTDIR: "/certs"
+
+stages:
+  - lint
+  - test
+  - audit
+  - package
+  - scan
+  - deploy
+
+# ── Defaults ─────────────────────────────────────────────────────
+default:
+  interruptible: true
+
+# ── LINT ─────────────────────────────────────────────────────────
+lint:
+  stage: lint
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  cache:
+    key: nuget-$CI_COMMIT_REF_SLUG
+    paths:
+      - sphone-api/.nuget/packages/
+  script:
+    - cd sphone-api
+    - dotnet restore --packages .nuget/packages
+    - dotnet format --verify-no-changes --no-restore
+  rules:
+    - when: always
+
+# ── TEST ─────────────────────────────────────────────────────────
+test:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  cache:
+    key: nuget-$CI_COMMIT_REF_SLUG
+    paths:
+      - sphone-api/.nuget/packages/
+  script:
+    - cd sphone-api
+    - dotnet restore --packages .nuget/packages
+    - |
+      # Find any xUnit/NUnit/MSTest projects
+      TEST_PROJECTS=$(find . -name "*.csproj" | xargs grep -l -i "xunit\|nunit\|MSTest" 2>/dev/null || true)
+      if [ -n "$TEST_PROJECTS" ]; then
+        dotnet test --no-restore \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage \
+          --logger "junit;LogFilePath=./test-results/results.xml"
+      else
+        echo "No test projects found — skipping. Add a test project to enable coverage reporting."
+      fi
+  coverage: '/Total.*?(\d+(?:\.\d+)?)%/'
+  artifacts:
+    when: always
+    reports:
+      junit: sphone-api/test-results/results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: sphone-api/coverage/**/coverage.cobertura.xml
+    expire_in: 1 week
+  rules:
+    - when: always
+
+# ── AUDIT (dependency vulnerability check) ───────────────────────
+audit:
+  stage: audit
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  cache:
+    key: nuget-$CI_COMMIT_REF_SLUG
+    paths:
+      - sphone-api/.nuget/packages/
+  script:
+    - cd sphone-api
+    - dotnet restore --packages .nuget/packages
+    - dotnet list package --vulnerable --include-transitive 2>&1 | tee audit.txt
+    - |
+      if grep -q "has the following vulnerable packages" audit.txt; then
+        echo "⚠ Vulnerable NuGet packages detected — review audit.txt"
+        cat audit.txt
+        exit 1
+      else
+        echo "No vulnerable packages found."
+      fi
+  artifacts:
+    when: always
+    paths:
+      - sphone-api/audit.txt
+    expire_in: 1 week
+  allow_failure: true
+  rules:
+    - when: always
+
+# ── PACKAGE (Docker build + push) ────────────────────────────────
+package:
+  stage: package
+  image: docker:27
+  services:
+    - docker:27-dind
+  before_script:
+    - docker login -u "$DOCKER_HUB_USERNAME" -p "$DOCKER_HUB_TOKEN"
+  script:
+    - |
+      SHA_TAG="$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+      BRANCH_TAG="$IMAGE_NAME:$CI_COMMIT_REF_SLUG"
+
+      docker build \
+        --label "project=sphone" \
+        --label "service=sphone-api" \
+        --label "git.sha=$CI_COMMIT_SHA" \
+        --label "git.branch=$CI_COMMIT_REF_NAME" \
+        --label "git.ref=$CI_COMMIT_REF_SLUG" \
+        --label "ci.pipeline=$CI_PIPELINE_URL" \
+        --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        -t "$SHA_TAG" \
+        -t "$BRANCH_TAG" \
+        sphone-api/
+
+      docker push "$SHA_TAG"
+      docker push "$BRANCH_TAG"
+
+      # Tag :latest only on the default branch
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        docker tag "$SHA_TAG" "$IMAGE_NAME:latest"
+        docker push "$IMAGE_NAME:latest"
+        echo "Pushed $IMAGE_NAME:latest"
+      fi
+
+      # Tag with semver if this is a git tag (e.g. v1.2.3)
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "$SHA_TAG" "$IMAGE_NAME:$CI_COMMIT_TAG"
+        docker push "$IMAGE_NAME:$CI_COMMIT_TAG"
+        echo "Pushed $IMAGE_NAME:$CI_COMMIT_TAG"
+      fi
+
+      echo "IMAGE_TAG=$SHA_TAG" >> ../build.env
+      echo "IMAGE_SHA=$CI_COMMIT_SHORT_SHA" >> ../build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# ── SCAN (Trivy container vulnerability scan) ────────────────────
+scan:
+  stage: scan
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  needs:
+    - package
+  variables:
+    GIT_STRATEGY: none
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: .trivycache
+  cache:
+    key: trivy-db
+    paths:
+      - .trivycache/
+  script:
+    - |
+      IMAGE="$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+
+      # Human-readable summary
+      trivy image \
+        --severity HIGH,CRITICAL \
+        --exit-code 0 \
+        --format table \
+        "$IMAGE"
+
+      # GitLab Security dashboard report
+      trivy image \
+        --severity HIGH,CRITICAL \
+        --exit-code 0 \
+        --format template \
+        --template "@/contrib/gitlab.tpl" \
+        -o gl-container-scanning-report.json \
+        "$IMAGE"
+  artifacts:
+    when: always
+    reports:
+      container_scanning: gl-container-scanning-report.json
+    expire_in: 1 week
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# ── DEPLOY: dev (auto on main) ───────────────────────────────────
+deploy:dev:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  needs:
+    - package
+  environment:
+    name: dev
+    url: http://dev.sphone.internal
+  before_script:
+    - mkdir -p ~/.kube
+    - echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+  script:
+    - |
+      kubectl set image deployment/sphone-api \
+        sphone-api=$IMAGE_NAME:$CI_COMMIT_SHORT_SHA \
+        --namespace sphone-dev
+      kubectl rollout status deployment/sphone-api --namespace sphone-dev --timeout=120s
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ── DEPLOY: staging (manual on git tag) ──────────────────────────
+deploy:staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  needs:
+    - package
+    - scan
+  environment:
+    name: staging
+    url: http://staging.sphone.internal
+  before_script:
+    - mkdir -p ~/.kube
+    - echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+  script:
+    - |
+      kubectl set image deployment/sphone-api \
+        sphone-api=$IMAGE_NAME:$CI_COMMIT_TAG \
+        --namespace sphone-staging
+      kubectl rollout status deployment/sphone-api --namespace sphone-staging --timeout=120s
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual

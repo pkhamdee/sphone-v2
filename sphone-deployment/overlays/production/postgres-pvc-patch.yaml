@@ -1,0 +1,17 @@
+# In production, increase postgres PVC to 50Gi
+# Applied as a strategic merge patch on the StatefulSet volumeClaimTemplates
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sphone-postgres
+  namespace: sphone
+spec:
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "ssd"        # Use a fast SSD storage class
+        resources:
+          requests:
+            storage: 50Gi

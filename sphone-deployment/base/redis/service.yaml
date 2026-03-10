@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sphone-redis
+  namespace: sphone
+  labels:
+    app: sphone-redis
+spec:
+  selector:
+    app: sphone-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  type: ClusterIP

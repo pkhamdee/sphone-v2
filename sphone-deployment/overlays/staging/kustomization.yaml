@@ -1,0 +1,49 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: sphone
+
+# --- Image tags for staging ---
+images:
+  - name: sphone-api
+    newTag: staging
+  - name: sphone-app
+    newTag: staging
+
+labels:
+  - pairs:
+      environment: staging
+    includeSelectors: false
+
+patches:
+  - path: patches/api-deployment.yaml
+    target:
+      kind: Deployment
+      name: sphone-api
+  - path: patches/app-deployment.yaml
+    target:
+      kind: Deployment
+      name: sphone-app
+  - path: patches/ingress.yaml
+    target:
+      kind: Ingress
+      name: sphone-ingress
+  - path: patches/api-configmap.yaml
+    target:
+      kind: ConfigMap
+      name: sphone-api-config
+
+secretGenerator:
+  - name: sphone-api-secret
+    envs:
+      - secret.env
+    options:
+      disableNameSuffixHash: true
+  - name: sphone-postgres-secret
+    envs:
+      - secret.env
+    options:
+      disableNameSuffixHash: true

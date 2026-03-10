@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sphone-app
+  namespace: sphone
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: sphone-app
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://sphone.local/api"
+            - name: NODE_ENV
+              value: "development"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────────
+# sPhone Monorepo — Root Pipeline
+# Triggers child pipelines only when their respective paths change.
+# ─────────────────────────────────────────────────────────────────
+
+stages:
+  - trigger
+
+api:
+  stage: trigger
+  trigger:
+    include: sphone-api/.gitlab-ci.yml
+    strategy: depend
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      changes:
+        - sphone-api/**/*
+    - if: $CI_COMMIT_TAG
+
+app:
+  stage: trigger
+  trigger:
+    include: sphone-app/.gitlab-ci.yml
+    strategy: depend
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      changes:
+        - sphone-app/**/*
+    - if: $CI_COMMIT_TAG

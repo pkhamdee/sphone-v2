@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Standalone kustomize root for the observability/monitoring stack.
+# Deployed independently from the sphone app namespace:
+#   kubectl apply -k monitoring/
+#
+# Resources land in the 'monitoring' namespace (defined by each resource file).
+
+resources:
+  - ../base/observability
+
+# Override Grafana admin password via secret generator
+secretGenerator:
+  - name: grafana-secret
+    namespace: monitoring
+    literals:
+      - admin-password=change-me-in-production
+    options:
+      disableNameSuffixHash: true

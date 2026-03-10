@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: sphone
+
+# --- Image tags for development ---
+images:
+  - name: sphone-api
+    newTag: dev
+  - name: sphone-app
+    newTag: dev
+
+# --- Labels applied to all resources ---
+labels:
+  - pairs:
+      environment: development
+    includeSelectors: false
+
+# --- Strategic merge patches (only what differs from base) ---
+patches:
+  - path: patches/api-deployment.yaml
+    target:
+      kind: Deployment
+      name: sphone-api
+  - path: patches/app-deployment.yaml
+    target:
+      kind: Deployment
+      name: sphone-app
+  - path: patches/ingress.yaml
+    target:
+      kind: Ingress
+      name: sphone-ingress
+  - path: patches/api-configmap.yaml
+    target:
+      kind: ConfigMap
+      name: sphone-api-config
+
+# --- Secrets (copy secret.env.example → secret.env and fill values) ---
+secretGenerator:
+  - name: sphone-api-secret
+    envs:
+      - secret.env
+    options:
+      disableNameSuffixHash: true
+  - name: sphone-postgres-secret
+    envs:
+      - secret.env
+    options:
+      disableNameSuffixHash: true

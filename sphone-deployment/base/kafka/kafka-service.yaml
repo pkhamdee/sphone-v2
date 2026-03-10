@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sphone-kafka
+  namespace: sphone
+  labels:
+    app: sphone-kafka
+spec:
+  selector:
+    app: sphone-kafka
+  ports:
+    - port: 9092
+      targetPort: 9092
+      name: kafka
+  clusterIP: None  # Headless for StatefulSet DNS
