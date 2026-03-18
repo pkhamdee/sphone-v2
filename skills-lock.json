@@ -46,6 +46,16 @@
       "sourceType": "github",
       "computedHash": "1a3d750d5107a059e00216b506ee1d0ae2f116c8786b7a09785cc539fb9a3df5"
     },
+    "building-components": {
+      "source": "vercel/components.build",
+      "sourceType": "github",
+      "computedHash": "ca96444b70257eb3f4f4c76dfdd4a32312c835fe3c8755d2e3d75ac78d384bfd"
+    },
+    "cra-to-next-migration": {
+      "source": "vercel-labs/migration-skills",
+      "sourceType": "github",
+      "computedHash": "e81e89e8327a66784a926250cbd897ec0232c5ae4068b1cb04578a53d4bb3353"
+    },
     "crap-analysis": {
       "source": "Aaronontheweb/dotnet-skills",
       "sourceType": "github",
@@ -121,6 +131,26 @@
       "sourceType": "github",
       "computedHash": "d9aa818e5b25a74505ed6678a6d31445bebe4b12ec29c07329c38c574dca0cac"
     },
+    "next-best-practices": {
+      "source": "vercel-labs/next-skills",
+      "sourceType": "github",
+      "computedHash": "515ba75178bd44875812d9a560bdf14651f86709f89cf1d4f209638e879807f3"
+    },
+    "next-cache-components": {
+      "source": "vercel-labs/next-skills",
+      "sourceType": "github",
+      "computedHash": "a94b83ddcd2ff1c30722577f693b1bfe32f2e1a83abdd6c08c2d6cc6753b53c8"
+    },
+    "next-upgrade": {
+      "source": "vercel-labs/next-skills",
+      "sourceType": "github",
+      "computedHash": "be6bbf6ab1dc2cc6f2505cea52d497920c04f5b532c0846ee201f6029b803fb0"
+    },
+    "nextjs-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "8f5b6b588c638139854181f80a241c16575810a3bd45b0983e55078b6aed347a"
+    },
     "package-management": {
       "source": "Aaronontheweb/dotnet-skills",
       "sourceType": "github",
@@ -156,20 +186,35 @@
       "sourceType": "github",
       "computedHash": "12064a0fbd71dee63df9843ba24d64ddfd02b5da0d6a430d371bdfd3386f201c"
     },
+    "turborepo": {
+      "source": "vercel/turborepo",
+      "sourceType": "github",
+      "computedHash": "23c33c9b7756f373c70cb1b40712ca2faacc77310dd3aa08c42612db0d03e8f1"
+    },
     "type-design-performance": {
       "source": "Aaronontheweb/dotnet-skills",
       "sourceType": "github",
       "computedHash": "7b436248d9350df9d203d6300c06f21b6e15c1cea000dfa798bd8c38461ffc5c"
     },
-    "verify-email-snapshots": {
-      "source": "Aaronontheweb/dotnet-skills",
+    "vercel-composition-patterns": {
+      "source": "vercel-labs/agent-skills",
       "sourceType": "github",
-      "computedHash": "625a24dc271646f1448dc4e925cc9358419255ef20aa70b086fb4fe2f5c2463d"
+      "computedHash": "f98931159fa9c7fed043bcd18a891a46dcf89ababa38df13a4c5b7b30dc0ce07"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
-      "computedHash": "4365be772fd3b41994a72ad478472c6d680678e7f3859860ab010e9c46e48ee0"
+      "computedHash": "3462ec83f862abb2d532953df33a4dbf87f4616849da5d4b5cc7c13601aaf997"
+    },
+    "vercel-react-native-skills": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "2e9088a7333666d8c2833b8ff58bd51b955501c42b4c7244f72b4cbf22dafcc4"
+    },
+    "verify-email-snapshots": {
+      "source": "Aaronontheweb/dotnet-skills",
+      "sourceType": "github",
+      "computedHash": "625a24dc271646f1448dc4e925cc9358419255ef20aa70b086fb4fe2f5c2463d"
     },
     "web-design-guidelines": {
       "source": "vercel-labs/agent-skills",

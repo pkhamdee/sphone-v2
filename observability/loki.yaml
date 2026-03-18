@@ -37,3 +37,11 @@ limits_config:
   ingestion_rate_mb: 16
   ingestion_burst_size_mb: 32
   retention_period: 168h   # 7 days
+
+# working_directory for the compactor (ring is inherited from common.ring above).
+compactor:
+  working_directory: /var/loki/compactor
+
+# Disable ring-based scheduler discovery — not needed in single-binary mode.
+query_scheduler:
+  use_scheduler_ring: false

@@ -29,37 +29,34 @@ services:
       timeout: 5s
       retries: 5
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    container_name: sphone-zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: sphone-kafka
-    depends_on:
-      - zookeeper
     ports:
       - "9092:9092"   # External (host) access
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Two listeners: INTERNAL for container-to-container, EXTERNAL for host tools
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://sphone-kafka:29092,EXTERNAL://localhost:9092
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # KRaft mode — no ZooKeeper required
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@sphone-kafka:29093"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://sphone-kafka:29092,EXTERNAL://localhost:9092"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list 2>/dev/null && echo ok"]
+      interval: 10s
+      timeout: 15s
+      retries: 10
+      start_period: 30s
 
   # ---------------------------------------------------------------------------
   # Application services
@@ -74,17 +71,15 @@ services:
     ports:
       - "5154:8080"
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Database: "Host=sphone-postgres;Port=5432;Database=sphone;Username=sphone;Password=sphone123"
-      ConnectionStrings__Redis: "sphone-redis:6379"
-      Kafka__BootstrapServers: "sphone-kafka:29092"
-      Jwt__Secret: "sphone-super-secret-key-minimum-32-characters!!"
-      Jwt__Issuer: "sphone-api"
-      Jwt__Audience: "sphone-app"
-      Jwt__ExpiryHours: "24"
-      OpenTelemetry__Endpoint: "http://sphone-otel-collector:4317"
-      Cors__AllowedOrigins__0: "http://localhost:3000"
-      Cors__AllowedOrigins__1: "http://sphone-app:3000"
+      DATABASE_URL: "postgresql://sphone:sphone123@sphone-postgres:5432/sphone"
+      REDIS_URL: "redis://sphone-redis:6379"
+      KAFKA_BROKERS: "sphone-kafka:29092"
+      JWT_SECRET: "sphone-super-secret-key-minimum-32-characters!!"
+      JWT_EXPIRY_HOURS: "24"
+      NODE_ENV: "production"
+      PORT: "8080"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://sphone-otel-collector:4318"
+      OTEL_SERVICE_NAME: "sphone-api"
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,7 +90,7 @@ services:
       otel-collector:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8080/api/health"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -112,10 +107,12 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: production
-      # Browser-facing URL (resolved from the user's machine)
+      # Browser-facing URL kept for SSR fallback; browser calls use /api/proxy instead
       NEXT_PUBLIC_API_URL: "http://localhost:5154/api"
+      # Used by the server-side proxy route (/api/proxy) to reach sphone-api inside Docker
+      INTERNAL_API_URL: "http://sphone-api:8080"
       # Server-side OTel (resolved inside Docker network)
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://sphone-otel-collector:4317"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://sphone-otel-collector:4318"
       OTEL_SERVICE_NAME: "sphone-app"
     depends_on:
       sphone-api:
@@ -208,9 +205,43 @@ services:
       - tempo
       - loki
 
+  promtail:
+    image: grafana/promtail:3.4.2
+    container_name: sphone-promtail
+    volumes:
+      - ./observability/promtail.yaml:/etc/promtail/promtail.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail.yaml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Load generator  (opt-in: docker compose --profile loadtest up locust)
+  # ---------------------------------------------------------------------------
+
+  locust:
+    image: locustio/locust:2.32.3
+    container_name: sphone-locust
+    profiles: ["loadtest"]
+    volumes:
+      - ./sphone-load:/mnt/locust:ro
+    command: >
+      -f /mnt/locust/locustfile.py
+      --host http://sphone-api:8080
+      --headless
+      --users 1
+      --spawn-rate 1
+    ports:
+      - "8089:8089"   # Locust web UI at http://localhost:8089
+    depends_on:
+      sphone-api:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
+  kafka_data:
   prometheus_data:
   tempo_data:
   loki_data:

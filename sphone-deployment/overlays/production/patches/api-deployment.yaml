@@ -26,9 +26,6 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: sphone-api
-          env:
-            - name: ASPNETCORE_ENVIRONMENT
-              value: "Production"
           resources:
             requests:
               cpu: "300m"

@@ -16,6 +16,11 @@ distributor:
 ingester:
   trace_idle_period: 10s
   max_block_duration: 5m
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
 
 compactor:
   compaction:
@@ -36,3 +41,42 @@ query_frontend:
   trace_by_id:
     duration_slo: 5s
 
+# Tell querier workers where the gRPC frontend lives (itself in all-in-one mode).
+querier:
+  frontend_worker:
+    frontend_address: "127.0.0.1:9095"
+
+# Service graph + span metrics generator — pushes to Prometheus via remote write
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: local
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  processor:
+    service_graphs:
+      dimensions:
+        - http.method
+        - http.status_code
+      # peer_attributes: used to name virtual nodes for services with no SERVER span
+      # (databases, caches, message brokers). Checked in order; first match wins.
+      peer_attributes:
+        - peer.service   # set by ioredis/kafkajs hooks → "redis", "kafka"
+        - db.system      # set by PrismaInstrumentation → "postgresql"
+        - messaging.system
+    span_metrics:
+      dimensions:
+        - http.method
+        - http.status_code
+        - http.route
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics

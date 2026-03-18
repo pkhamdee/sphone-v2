@@ -4,5 +4,5 @@ metadata:
   name: sphone-api-config
   namespace: sphone
 data:
-  ASPNETCORE_ENVIRONMENT: "Staging"
-  Logging__LogLevel__Default: "Information"
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"

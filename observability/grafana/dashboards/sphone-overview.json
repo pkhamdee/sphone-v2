@@ -1,191 +1,359 @@
 {
-  "title": "sPhone — Service Overview",
-  "uid": "sphone-overview",
-  "tags": ["sphone"],
-  "schemaVersion": 38,
-  "time": { "from": "now-1h", "to": "now" },
-  "refresh": "30s",
+  "id": 1,
   "panels": [
     {
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(sphone_http_server_duration_milliseconds_count{exported_job=~\"sphone/.*\"}[1m])) by (exported_job)",
+          "legendFormat": "{{exported_job}}"
+        }
+      ],
       "title": "Request Rate (req/s)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(http_server_duration_milliseconds_count{service_name=~\"sphone.*\"}[1m])) by (service_name)",
-          "legendFormat": "{{service_name}}"
-        }
-      ]
+      "type": "timeseries"
     },
     {
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
       "id": 2,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum(rate(sphone_http_server_duration_milliseconds_bucket{exported_job=~\"sphone/.*\"}[1m])) by (le, exported_job))",
+          "legendFormat": "{{exported_job}} p99"
+        }
+      ],
       "title": "P99 Latency (ms)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket{service_name=~\"sphone.*\"}[1m])) by (le, service_name))",
-          "legendFormat": "{{service_name}} p99"
-        }
-      ]
+      "type": "timeseries"
     },
     {
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
       "id": 3,
-      "title": "Error Rate (%)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "100 * sum(rate(http_server_duration_milliseconds_count{http_status_code=~\"5..\",service_name=~\"sphone.*\"}[1m])) by (service_name) / sum(rate(http_server_duration_milliseconds_count{service_name=~\"sphone.*\"}[1m])) by (service_name)",
-          "legendFormat": "{{service_name}} errors %"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * sum(rate(sphone_http_server_duration_milliseconds_count{http_status_code=~\"[45]..\",exported_job=~\"sphone/.*\"}[1m])) by (exported_job) / sum(rate(sphone_http_server_duration_milliseconds_count{exported_job=~\"sphone/.*\"}[1m])) by (exported_job)",
+          "legendFormat": "{{exported_job}} errors %"
         }
-      ]
+      ],
+      "title": "Error Rate (%)",
+      "type": "timeseries"
     },
     {
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
       "id": 4,
-      "title": "Orders Created",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(sphone_sphone_orders_created_total[24h]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(sphone_orders_created_total[24h]))",
           "legendFormat": "Orders (24h)"
         }
       ],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+      "title": "Orders Created",
+      "type": "stat"
     },
     {
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
       "id": 5,
-      "title": "Customers Registered",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(sphone_sphone_customers_registered_total[24h]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(sphone_customers_registered_total[24h]))",
           "legendFormat": "Customers (24h)"
         }
       ],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+      "title": "Customers Registered",
+      "type": "stat"
     },
     {
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
       "id": 6,
-      "title": "Monthly Installment Distribution (THB)",
-      "type": "histogram",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(sphone_sphone_order_installment_amount_thb_bucket[5m])) by (le)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(sphone_order_installment_amount_thb_bucket[5m])) by (le)",
           "legendFormat": "{{le}} THB"
         }
-      ]
+      ],
+      "title": "Monthly Installment Distribution (THB)",
+      "type": "histogram"
     },
     {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
       "id": 7,
-      "title": ".NET Runtime — GC Heap (MB)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "process_runtime_dotnet_gc_heap_size_bytes{service_name=\"sphone-api\"} / 1024 / 1024",
-          "legendFormat": "Heap (gen {{generation}})"
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "title": ".NET Thread Pool Queue",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "process_runtime_dotnet_thread_pool_queue_length{service_name=\"sphone-api\"}",
-          "legendFormat": "Queue length"
-        }
-      ]
-    },
-    {
-      "id": 10,
-      "title": "Traces",
-      "type": "row",
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 }
-    },
-    {
-      "id": 11,
-      "title": "Recent Traces — sphone services",
-      "type": "traces",
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 25 },
-      "datasource": { "type": "tempo", "uid": "tempo" },
-      "targets": [
-        {
-          "datasource": { "type": "tempo", "uid": "tempo" },
-          "queryType": "traceql",
-          "query": "{resource.service.name=~\"sphone.*\"}",
-          "limit": 20,
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(sphone_v8js_memory_heap_used_bytes{exported_job=~\"sphone/.*\"}) by (exported_job) / 1024 / 1024",
+          "legendFormat": "{{exported_job}}"
         }
       ],
+      "title": "Node.js \u2014 Heap Memory (MB)",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 8,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sphone_nodejs_eventloop_utilization_ratio{exported_job=~\"sphone/.*\"}",
+          "legendFormat": "{{exported_job}}"
+        }
+      ],
+      "title": "Node.js \u2014 Event Loop Utilization",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 10,
+      "title": "Traces",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 11,
       "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      }
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Start time"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "limit": 20,
+          "query": "{resource.service.name=~\"sphone.*\"}",
+          "queryType": "traceql",
+          "refId": "A",
+          "tableType": "traces"
+        }
+      ],
+      "title": "Recent Traces \u2014 sphone services",
+      "type": "table"
     },
     {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
       "id": 12,
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "limit": 20,
+          "query": "{resource.service.name=~\"sphone.*\" && span.http.status_code >= 400}",
+          "queryType": "traceql",
+          "refId": "A",
+          "tableType": "traces"
+        }
+      ],
       "title": "Error Traces",
-      "type": "traces",
-      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 37 },
-      "datasource": { "type": "tempo", "uid": "tempo" },
-      "targets": [
-        {
-          "datasource": { "type": "tempo", "uid": "tempo" },
-          "queryType": "traceql",
-          "query": "{resource.service.name=~\"sphone.*\" && status=error}",
-          "limit": 20,
-          "refId": "A"
-        }
-      ]
+      "type": "table"
     },
     {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
       "id": 13,
-      "title": "Slow Traces (>500ms)",
-      "type": "traces",
-      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 37 },
-      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
       "targets": [
         {
-          "datasource": { "type": "tempo", "uid": "tempo" },
-          "queryType": "traceql",
-          "query": "{resource.service.name=~\"sphone.*\" && duration>500ms}",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
           "limit": 20,
-          "refId": "A"
+          "query": "{resource.service.name=~\"sphone.*\" && duration>500ms}",
+          "queryType": "traceql",
+          "refId": "A",
+          "tableType": "traces"
         }
-      ]
+      ],
+      "title": "Slow Traces (>500ms)",
+      "type": "table"
     },
     {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
       "id": 9,
-      "title": "Recent Logs (sphone-api)",
-      "type": "logs",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 49 },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{service_name=\"sphone-api\"} | json",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=\"sphone-api\"}",
           "legendFormat": ""
         }
-      ]
+      ],
+      "title": "Recent Logs (sphone-api)",
+      "type": "logs"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 14,
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=\"sphone-app\"}",
+          "legendFormat": ""
+        }
+      ],
+      "title": "Recent Logs (sphone-app)",
+      "type": "logs"
     }
-  ]
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": [
+    "sphone"
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "sPhone \u2014 Service Overview",
+  "uid": "sphone-overview",
+  "version": 8
 }

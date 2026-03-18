@@ -1,29 +1,33 @@
-# ── Stage 1: restore & build ──────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /src
-
-# Restore first (cached layer unless csproj changes)
-COPY sphoneapi.csproj .
-RUN dotnet restore
-
-# Copy source and publish
-COPY . .
-RUN dotnet publish sphoneapi.csproj \
-    -c Release \
-    -o /app/publish \
-    --no-restore
-
-# ── Stage 2: runtime image ────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM node:22-alpine AS builder
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install wget for health checks
-RUN apt-get update && apt-get install -y --no-install-recommends wget \
-    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
 
-COPY --from=build /app/publish .
+COPY . .
+RUN npx prisma generate
+RUN --mount=type=cache,target=/app/.next/cache \
+    npm run build
 
-ENV ASPNETCORE_URLS=http://+:8080
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules ./node_modules
+
+USER nextjs
 EXPOSE 8080
+ENV PORT=8080
+ENV HOSTNAME="0.0.0.0"
 
-ENTRYPOINT ["dotnet", "sphoneapi.dll"]
+COPY --from=builder /app/prisma/seed-sql.js ./prisma/seed-sql.js
+
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node prisma/seed-sql.js && node server.js"]

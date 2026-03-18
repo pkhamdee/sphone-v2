@@ -29,16 +29,7 @@ data:
           path: /var/tempo/traces
         wal:
           path: /var/tempo/wal
-    metrics_generator:
-      registry:
-        external_labels:
-          source: tempo
-          cluster: sphone-k8s
-      storage:
-        path: /var/tempo/generator/wal
-      processors:
-        - service-graphs
-        - span-metrics
+
 ---
 apiVersion: apps/v1
 kind: Deployment

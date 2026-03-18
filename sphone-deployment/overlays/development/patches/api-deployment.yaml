@@ -9,9 +9,6 @@ spec:
     spec:
       containers:
         - name: sphone-api
-          env:
-            - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
           resources:
             requests:
               cpu: "100m"

@@ -10,12 +10,12 @@ scrape_configs:
         labels:
           cluster: local
 
-  # Direct scrape of sphone-api /metrics (ASP.NET Core Prometheus exporter)
-  # Useful as a fallback if OTLP pipeline is down
-  - job_name: "sphone-api"
+  # sphone-api metrics come via OTLP push → otel-collector → prometheus exporter at :8889
+  # No direct scrape needed for the Next.js API
+
+  # Tempo self-metrics (also receives service graph metrics via remote write from metrics_generator)
+  - job_name: "tempo"
     static_configs:
-      - targets: ["host.docker.internal:5154"]
+      - targets: ["tempo:3200"]
         labels:
-          service_name: sphone-api
           cluster: local
-    metrics_path: /metrics

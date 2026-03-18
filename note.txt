@@ -1,0 +1,24 @@
+Folder created at sphone-app/public/images/. Now drop your image files there with the exact names from the seed:
+
+File name	Product
+iphone15pro.jpg	iPhone 15 Pro
+s24.jpg	Samsung Galaxy S24
+findx7.jpg	OPPO Find X7
+xiaomi14.jpg	Xiaomi 14
+vivox100.jpg	Vivo X100
+ipadpro.jpg	iPad Pro 12.9"
+tabs9.jpg	Samsung Galaxy Tab S9
+lenovo_p12.jpg	Lenovo Tab P12 Pro
+lg_fridge.jpg	LG ตู้เย็น
+samsung_washer.jpg	Samsung เครื่องซักผ้า
+daikin_ac.jpg	Daikin แอร์
+sharp_tv.jpg	Sharp ทีวี
+bedroom_set.jpg	ชุดห้องนอน
+sofa_l.jpg	โซฟา L-Shape
+wardrobe.jpg	ตู้เสื้อผ้า
+honda_em1.jpg	Honda EM1 e:
+yamaha_neos.jpg	Yamaha Neo's Electric
+vmoto_tc.jpg	Vmoto Soco TC Max
+aion_hb.jpg	AION Hummingbird
+realme_c67.jpg	Realme C67
+poco_x6.jpg	POCO X6 Pro (if exists)
